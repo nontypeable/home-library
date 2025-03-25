@@ -45,7 +45,7 @@ type (
 var once sync.Once
 
 func LoadConfig() (*Config, error) {
-	var config *Config
+	var config Config
 	var err error
 
 	once.Do(func() {
@@ -66,7 +66,7 @@ func LoadConfig() (*Config, error) {
 		}
 	})
 
-	return config, err
+	return &config, err
 }
 
 func (cfg *DatabaseConfig) GetDSN() string {
