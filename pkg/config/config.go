@@ -68,3 +68,7 @@ func LoadConfig() (*Config, error) {
 
 	return config, err
 }
+
+func (cfg *DatabaseConfig) GetDSN() string {
+	return fmt.Sprintf("host=%s port=%d user=%s dbname=%s sslmode=%s", cfg.Host, cfg.Port, cfg.Username, cfg.DatabaseName, cfg.SSLMode)
+}
