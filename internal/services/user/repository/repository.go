@@ -10,6 +10,7 @@ import (
 
 type Repository interface {
 	CreateUser(ctx context.Context, user *entities.User) (uuid.UUID, error)
+	GetUserByEmail(ctx context.Context, email string) (*entities.User, error)
 }
 
 type repository struct {
@@ -26,4 +27,13 @@ func (r *repository) CreateUser(ctx context.Context, user *entities.User) (uuid.
 		return uuid.Nil, result.Error
 	}
 	return user.UserID, nil
+}
+
+func (r *repository) GetUserByEmail(ctx context.Context, email string) (*entities.User, error) {
+	var user entities.User
+	result := r.db.WithContext(ctx).Where("email = ?", email).First(&user)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &user, nil
 }
