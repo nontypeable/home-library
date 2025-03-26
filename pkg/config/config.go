@@ -2,9 +2,10 @@ package config
 
 import (
 	"fmt"
-	"github.com/ilyakaznacheev/cleanenv"
 	"os"
 	"sync"
+
+	"github.com/ilyakaznacheev/cleanenv"
 )
 
 type (
@@ -70,5 +71,5 @@ func LoadConfig() (*Config, error) {
 }
 
 func (cfg *DatabaseConfig) GetDSN() string {
-	return fmt.Sprintf("host=%s port=%d user=%s dbname=%s sslmode=%s", cfg.Host, cfg.Port, cfg.Username, cfg.DatabaseName, cfg.SSLMode)
+	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s", cfg.Host, cfg.Port, cfg.Username, cfg.Password, cfg.DatabaseName, cfg.SSLMode)
 }
