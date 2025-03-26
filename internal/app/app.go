@@ -58,6 +58,10 @@ func (app *App) Start() error {
 		}
 	}()
 
+	if err := app.startService(); err != nil {
+		return err
+	}
+
 	address := fmt.Sprintf("%s:%d", app.cfg.HTTPServer.Host, app.cfg.HTTPServer.Port)
 	if err := app.echo.StartTLS(address, app.cfg.SSL.CertFile, app.cfg.SSL.KeyFile); err != nil {
 		return err
