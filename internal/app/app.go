@@ -26,3 +26,16 @@ func NewApp(cfg config.Config) (*App, error) {
 		db:   db,
 	}, nil
 }
+
+func (app *App) closeDatabaseConnection() error {
+	db, err := app.db.DB()
+	if err != nil {
+		return err
+	}
+
+	if err := db.Close(); err != nil {
+		return err
+	}
+
+	return nil
+}
