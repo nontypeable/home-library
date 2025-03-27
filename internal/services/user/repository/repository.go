@@ -11,6 +11,7 @@ import (
 type Repository interface {
 	CreateUser(ctx context.Context, user *entities.User) (uuid.UUID, error)
 	GetUserByEmail(ctx context.Context, email string) (*entities.User, error)
+	IsUserExist(ctx context.Context, email string) (bool, error)
 }
 
 type repository struct {
@@ -36,4 +37,13 @@ func (r *repository) GetUserByEmail(ctx context.Context, email string) (*entitie
 		return nil, result.Error
 	}
 	return &user, nil
+}
+
+func (r *repository) IsUserExist(ctx context.Context, email string) (bool, error) {
+	var count int64
+	result := r.db.WithContext(ctx).Model(&entities.User{}).Where("email = ?", email).Count(&count)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return count > 0, nil
 }
