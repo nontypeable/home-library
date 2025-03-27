@@ -3,11 +3,10 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog/log"
-	"gorm.io/gorm"
 	"home-library/internal/server"
-	"home-library/internal/services/user/entities"
 	"home-library/pkg/config"
 	"home-library/pkg/storage"
 	"os"
@@ -17,18 +16,13 @@ import (
 )
 
 type App struct {
-	db   *gorm.DB
+	db   *sqlx.DB
 	echo *echo.Echo
 	cfg  config.Config
 }
 
 func NewApp(cfg config.Config) (*App, error) {
 	db, err := storage.NewPostgres(&cfg.Database)
-	if err != nil {
-		return nil, err
-	}
-
-	err = db.AutoMigrate(&entities.User{})
 	if err != nil {
 		return nil, err
 	}
@@ -56,8 +50,7 @@ func (app *App) Start() error {
 			log.Info().Msg("server was successfully shutdown")
 		}
 
-		err := app.closeDatabaseConnection()
-		if err != nil {
+		if err := app.db.Close(); err != nil {
 			log.Error().Err(err).Msg("failed to close database connection")
 		} else {
 			log.Info().Msg("database connection was successfully closed")
@@ -70,19 +63,6 @@ func (app *App) Start() error {
 
 	address := fmt.Sprintf("%s:%d", app.cfg.HTTPServer.Host, app.cfg.HTTPServer.Port)
 	if err := app.echo.StartTLS(address, app.cfg.SSL.CertFile, app.cfg.SSL.KeyFile); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (app *App) closeDatabaseConnection() error {
-	db, err := app.db.DB()
-	if err != nil {
-		return err
-	}
-
-	if err := db.Close(); err != nil {
 		return err
 	}
 
