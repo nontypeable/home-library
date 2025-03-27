@@ -8,6 +8,7 @@ require (
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/labstack/echo/v4 v4.13.3
 	github.com/rs/zerolog v1.34.0
+	golang.org/x/crypto v0.32.0
 	gorm.io/driver/postgres v1.5.11
 	gorm.io/gorm v1.25.12
 )
@@ -32,7 +33,6 @@ require (
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
-	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
