@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 	"home-library/internal/server"
+	"home-library/internal/services/user/entities"
 	"home-library/pkg/config"
 	"home-library/pkg/storage"
 	"os"
@@ -23,6 +24,11 @@ type App struct {
 
 func NewApp(cfg config.Config) (*App, error) {
 	db, err := storage.NewPostgres(&cfg.Database)
+	if err != nil {
+		return nil, err
+	}
+
+	err = db.AutoMigrate(&entities.User{})
 	if err != nil {
 		return nil, err
 	}
