@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
     first_name varchar(255) NOT NULL,
     last_name varchar(255) NOT NULL,
     email varchar(255) UNIQUE NOT NULL,
-    phone_number varchar(15) UNIQUE,
+    phone_number varchar(15) UNIQUE NOT NULL,
     PASSWORD TEXT NOT NULL,
     user_type varchar(10) CHECK (user_type IN ('admin', 'user')) NOT NULL,
     is_active boolean NOT NULL DEFAULT TRUE,
