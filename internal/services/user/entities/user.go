@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type UserType string
@@ -15,20 +14,25 @@ const (
 )
 
 type User struct {
-	UserID      uuid.UUID `gorm:"primary_key;type:uuid"`
-	FirstName   string    `gorm:"not null;size:50"`
-	LastName    string    `gorm:"not null;size:50"`
-	Email       string    `gorm:"not null;unique;size:255"`
-	PhoneNumber string    `gorm:"not null;unique;size:20"`
-	Password    string    `gorm:"not null;size:255"`
-	UserType    UserType  `gorm:"not null;type:varchar(5)"`
-	IsActive    bool      `gorm:"not null;default:true"`
-	CreatedAt   time.Time `gorm:"not null"`
-	UpdatedAt   time.Time `gorm:"not null"`
-	DeletedAt   time.Time
+	UserID      uuid.UUID `db:"user_id"`
+	FirstName   string    `db:"first_name"`
+	LastName    string    `db:"last_name"`
+	Email       string    `db:"email"`
+	PhoneNumber string    `db:"phone_number"`
+	Password    string    `db:"password"`
+	UserType    UserType  `db:"user_type"`
+	IsActive    bool      `db:"is_active"`
+	CreatedAt   time.Time `db:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at"`
+	DeletedAt   time.Time `db:"deleted_at,omitempty"`
 }
 
-func (u *User) BeforeCreate(tx *gorm.DB) error {
-	u.UserID = uuid.New()
-	return nil
+func NewUser() *User {
+	now := time.Now()
+	return &User{
+		UserID:    uuid.New(),
+		IsActive:  true,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
 }

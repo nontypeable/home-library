@@ -32,8 +32,8 @@ func (h *handler) CreateUser(c echo.Context) error {
 
 	userID, err := h.u.CreateUser(context.Background(), payload)
 	if err != nil {
-		if errors.Is(err, customErrors.ErrEmailAlreadyExist) {
-			return c.JSON(http.StatusBadRequest, dtos.NewErrorResponse(http.StatusBadRequest, "User with this email already exists", nil))
+		if errors.Is(err, customErrors.ErrUserAlreadyExist) {
+			return c.JSON(http.StatusBadRequest, dtos.NewErrorResponse(http.StatusBadRequest, "User with this email or phone number already exists", nil))
 		}
 		return c.JSON(http.StatusInternalServerError, dtos.NewErrorResponse(http.StatusInternalServerError, "Failed to create user", nil))
 	}

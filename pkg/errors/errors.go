@@ -3,5 +3,5 @@ package errors
 import "errors"
 
 var (
-	ErrEmailAlreadyExist = errors.New("email already exist")
+	ErrUserAlreadyExist = errors.New("user with this email or phone number already exist")
 )

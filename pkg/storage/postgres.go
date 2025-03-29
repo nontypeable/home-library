@@ -1,12 +1,12 @@
 package storage
 
 import (
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
 	"home-library/pkg/config"
 )
 
-func NewPostgres(cfg *config.DatabaseConfig) (*gorm.DB, error) {
+func NewPostgres(cfg *config.DatabaseConfig) (*sqlx.DB, error) {
 	dsn := cfg.GetDSN()
-	return gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	return sqlx.Connect("postgres", dsn)
 }
