@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"home-library/internal/services/user/entities"
 	"testing"
 	"time"
@@ -465,6 +466,122 @@ func TestCreateUser(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, uuid.Nil, id)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestGetUserByEmail(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewRepository(sqlxDB)
+
+	t.Run("successfully get user by email", func(t *testing.T) {
+		userID := uuid.New()
+		now := time.Now()
+		expectedUser := &entities.User{
+			UserID:      userID,
+			FirstName:   "Evgeny",
+			LastName:    "Koveshnikov",
+			Email:       "evgeny@example.com",
+			PhoneNumber: "+79001234567",
+			Password:    "hashedPassword",
+			UserType:    "user",
+			IsActive:    true,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+
+		rows := sqlmock.NewRows([]string{
+			"user_id", "first_name", "last_name", "email", "phone_number",
+			"password", "user_type", "is_active", "created_at", "updated_at",
+		}).AddRow(
+			expectedUser.UserID,
+			expectedUser.FirstName,
+			expectedUser.LastName,
+			expectedUser.Email,
+			expectedUser.PhoneNumber,
+			expectedUser.Password,
+			expectedUser.UserType,
+			expectedUser.IsActive,
+			expectedUser.CreatedAt,
+			expectedUser.UpdatedAt,
+		)
+
+		mock.ExpectQuery("SELECT \\* FROM users WHERE email = \\$1 AND deleted_at IS NULL").
+			WithArgs(expectedUser.Email).
+			WillReturnRows(rows)
+
+		user, err := repo.GetUserByEmail(context.Background(), expectedUser.Email)
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedUser, user)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("user not found", func(t *testing.T) {
+		email := "nonexistent@example.com"
+
+		mock.ExpectQuery("SELECT \\* FROM users WHERE email = \\$1 AND deleted_at IS NULL").
+			WithArgs(email).
+			WillReturnError(sql.ErrNoRows)
+
+		user, err := repo.GetUserByEmail(context.Background(), email)
+
+		assert.Error(t, err)
+		assert.Nil(t, user)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("user is deleted", func(t *testing.T) {
+		email := "deleted@example.com"
+
+		mock.ExpectQuery("SELECT \\* FROM users WHERE email = \\$1 AND deleted_at IS NULL").
+			WithArgs(email).
+			WillReturnError(sql.ErrNoRows)
+
+		user, err := repo.GetUserByEmail(context.Background(), email)
+
+		assert.Error(t, err)
+		assert.Nil(t, user)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("database connection error", func(t *testing.T) {
+		email := "test@example.com"
+
+		mock.ExpectQuery("SELECT \\* FROM users WHERE email = \\$1 AND deleted_at IS NULL").
+			WithArgs(email).
+			WillReturnError(&pq.Error{
+				Code:    "08006",
+				Message: "connection to database failed",
+			})
+
+		user, err := repo.GetUserByEmail(context.Background(), email)
+
+		assert.Error(t, err)
+		assert.Nil(t, user)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("empty email", func(t *testing.T) {
+		email := ""
+
+		mock.ExpectQuery("SELECT \\* FROM users WHERE email = \\$1 AND deleted_at IS NULL").
+			WithArgs(email).
+			WillReturnError(&pq.Error{
+				Code:    "23514",
+				Message: "new row for relation \"users\" violates check constraint \"users_email_check\"",
+			})
+
+		user, err := repo.GetUserByEmail(context.Background(), email)
+
+		assert.Error(t, err)
+		assert.Nil(t, user)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
