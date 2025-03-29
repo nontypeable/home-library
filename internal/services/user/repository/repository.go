@@ -5,45 +5,68 @@ import (
 	"home-library/internal/services/user/entities"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
+	"github.com/jmoiron/sqlx"
 )
 
 type Repository interface {
 	CreateUser(ctx context.Context, user *entities.User) (uuid.UUID, error)
 	GetUserByEmail(ctx context.Context, email string) (*entities.User, error)
-	IsUserExist(ctx context.Context, email string) (bool, error)
+	IsUserExist(ctx context.Context, email string, phoneNumber string) (bool, error)
 }
 
 type repository struct {
-	db *gorm.DB
+	db *sqlx.DB
 }
 
-func NewRepository(db *gorm.DB) Repository {
+func NewRepository(db *sqlx.DB) Repository {
 	return &repository{db: db}
 }
 
 func (r *repository) CreateUser(ctx context.Context, user *entities.User) (uuid.UUID, error) {
-	result := r.db.WithContext(ctx).Create(user)
-	if result.Error != nil {
-		return uuid.Nil, result.Error
+	query := `
+		INSERT INTO users (
+			user_id, first_name, last_name, email, phone_number,
+			password, user_type, is_active, created_at, updated_at
+		) VALUES (
+			:user_id, :first_name, :last_name, :email, :phone_number,
+			:password, :user_type, :is_active, :created_at, :updated_at
+		)
+	`
+
+	_, err := r.db.NamedExecContext(ctx, query, user)
+	if err != nil {
+		return uuid.Nil, err
 	}
+
 	return user.UserID, nil
 }
 
 func (r *repository) GetUserByEmail(ctx context.Context, email string) (*entities.User, error) {
 	var user entities.User
-	result := r.db.WithContext(ctx).Where("email = ?", email).First(&user)
-	if result.Error != nil {
-		return nil, result.Error
+	query := `
+		SELECT * FROM users 
+		WHERE email = $1 AND deleted_at IS NULL
+	`
+
+	err := r.db.GetContext(ctx, &user, query, email)
+	if err != nil {
+		return nil, err
 	}
+
 	return &user, nil
 }
 
-func (r *repository) IsUserExist(ctx context.Context, email string) (bool, error) {
-	var count int64
-	result := r.db.WithContext(ctx).Model(&entities.User{}).Where("email = ?", email).Count(&count)
-	if result.Error != nil {
-		return false, result.Error
+func (r *repository) IsUserExist(ctx context.Context, email string, phoneNumber string) (bool, error) {
+	var count int
+	query := `
+		SELECT COUNT(*) FROM users 
+		WHERE email = $1 OR phone_number = $2 AND deleted_at IS NULL
+	`
+
+	err := r.db.GetContext(ctx, &count, query, email, phoneNumber)
+	if err != nil {
+		return false, err
 	}
+
 	return count > 0, nil
 }
