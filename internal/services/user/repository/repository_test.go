@@ -585,3 +585,134 @@ func TestGetUserByEmail(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
+
+func TestIsUserExist(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewRepository(sqlxDB)
+
+	t.Run("user exists by email", func(t *testing.T) {
+		email := "evgeny@example.com"
+		phoneNumber := "+79001234567"
+
+		rows := sqlmock.NewRows([]string{"count"}).AddRow(1)
+
+		mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM users WHERE email = \\$1 OR phone_number = \\$2 AND deleted_at IS NULL").
+			WithArgs(email, phoneNumber).
+			WillReturnRows(rows)
+
+		exists, err := repo.IsUserExist(context.Background(), email, phoneNumber)
+
+		assert.NoError(t, err)
+		assert.True(t, exists)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("user exists by phone number", func(t *testing.T) {
+		email := "nonexistent@example.com"
+		phoneNumber := "+79001234567"
+
+		rows := sqlmock.NewRows([]string{"count"}).AddRow(1)
+
+		mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM users WHERE email = \\$1 OR phone_number = \\$2 AND deleted_at IS NULL").
+			WithArgs(email, phoneNumber).
+			WillReturnRows(rows)
+
+		exists, err := repo.IsUserExist(context.Background(), email, phoneNumber)
+
+		assert.NoError(t, err)
+		assert.True(t, exists)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("user exists by both email and phone number", func(t *testing.T) {
+		email := "evgeny@example.com"
+		phoneNumber := "+79001234567"
+
+		rows := sqlmock.NewRows([]string{"count"}).AddRow(1)
+
+		mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM users WHERE email = \\$1 OR phone_number = \\$2 AND deleted_at IS NULL").
+			WithArgs(email, phoneNumber).
+			WillReturnRows(rows)
+
+		exists, err := repo.IsUserExist(context.Background(), email, phoneNumber)
+
+		assert.NoError(t, err)
+		assert.True(t, exists)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("user does not exist", func(t *testing.T) {
+		email := "nonexistent@example.com"
+		phoneNumber := "+79001234568"
+
+		rows := sqlmock.NewRows([]string{"count"}).AddRow(0)
+
+		mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM users WHERE email = \\$1 OR phone_number = \\$2 AND deleted_at IS NULL").
+			WithArgs(email, phoneNumber).
+			WillReturnRows(rows)
+
+		exists, err := repo.IsUserExist(context.Background(), email, phoneNumber)
+
+		assert.NoError(t, err)
+		assert.False(t, exists)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("user is deleted", func(t *testing.T) {
+		email := "deleted@example.com"
+		phoneNumber := "+79001234569"
+
+		rows := sqlmock.NewRows([]string{"count"}).AddRow(0)
+
+		mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM users WHERE email = \\$1 OR phone_number = \\$2 AND deleted_at IS NULL").
+			WithArgs(email, phoneNumber).
+			WillReturnRows(rows)
+
+		exists, err := repo.IsUserExist(context.Background(), email, phoneNumber)
+
+		assert.NoError(t, err)
+		assert.False(t, exists)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("database connection error", func(t *testing.T) {
+		email := "test@example.com"
+		phoneNumber := "+79001234570"
+
+		mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM users WHERE email = \\$1 OR phone_number = \\$2 AND deleted_at IS NULL").
+			WithArgs(email, phoneNumber).
+			WillReturnError(&pq.Error{
+				Code:    "08006",
+				Message: "connection to database failed",
+			})
+
+		exists, err := repo.IsUserExist(context.Background(), email, phoneNumber)
+
+		assert.Error(t, err)
+		assert.False(t, exists)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("empty parameters", func(t *testing.T) {
+		email := ""
+		phoneNumber := ""
+
+		rows := sqlmock.NewRows([]string{"count"}).AddRow(0)
+
+		mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM users WHERE email = \\$1 OR phone_number = \\$2 AND deleted_at IS NULL").
+			WithArgs(email, phoneNumber).
+			WillReturnRows(rows)
+
+		exists, err := repo.IsUserExist(context.Background(), email, phoneNumber)
+
+		assert.NoError(t, err)
+		assert.False(t, exists)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}
