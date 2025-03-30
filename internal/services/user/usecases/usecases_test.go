@@ -6,9 +6,11 @@ import (
 	"home-library/internal/services/user/dtos"
 	"home-library/internal/services/user/entities"
 	customErrors "home-library/pkg/errors"
+	"home-library/pkg/jwt"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"golang.org/x/crypto/bcrypt"
@@ -36,10 +38,25 @@ func (m *MockRepository) IsUserExist(ctx context.Context, email string, phoneNum
 	return args.Bool(0), args.Error(1)
 }
 
+type MockJWT struct {
+	mock.Mock
+}
+
+func (m *MockJWT) GenerateToken(payload jwt.PayloadToken) (string, error) {
+	args := m.Called(payload)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockJWT) VerifyToken(c echo.Context, token string) error {
+	args := m.Called(c, token)
+	return args.Error(0)
+}
+
 func TestCreateUser(t *testing.T) {
 	t.Run("successfully create user", func(t *testing.T) {
 		mockRepo := new(MockRepository)
-		useCase := NewUseCase(mockRepo)
+		mockJWT := new(MockJWT)
+		useCase := NewUseCase(mockRepo, mockJWT)
 		userID := uuid.New()
 		payload := dtos.CreateUserRequest{
 			FirstName:   "Evgeny",
@@ -70,7 +87,8 @@ func TestCreateUser(t *testing.T) {
 
 	t.Run("user already exists", func(t *testing.T) {
 		mockRepo := new(MockRepository)
-		useCase := NewUseCase(mockRepo)
+		mockJWT := new(MockJWT)
+		useCase := NewUseCase(mockRepo, mockJWT)
 		payload := dtos.CreateUserRequest{
 			FirstName:   "Evgeny",
 			LastName:    "Koveshnikov",
@@ -92,7 +110,8 @@ func TestCreateUser(t *testing.T) {
 
 	t.Run("repository error", func(t *testing.T) {
 		mockRepo := new(MockRepository)
-		useCase := NewUseCase(mockRepo)
+		mockJWT := new(MockJWT)
+		useCase := NewUseCase(mockRepo, mockJWT)
 		payload := dtos.CreateUserRequest{
 			FirstName:   "Evgeny",
 			LastName:    "Koveshnikov",
@@ -115,7 +134,8 @@ func TestCreateUser(t *testing.T) {
 
 	t.Run("password is properly hashed", func(t *testing.T) {
 		mockRepo := new(MockRepository)
-		useCase := NewUseCase(mockRepo)
+		mockJWT := new(MockJWT)
+		useCase := NewUseCase(mockRepo, mockJWT)
 		userID := uuid.New()
 		payload := dtos.CreateUserRequest{
 			FirstName:   "Evgeny",
@@ -138,5 +158,161 @@ func TestCreateUser(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, userID, id)
 		mockRepo.AssertExpectations(t)
+	})
+}
+
+func TestSignInUser(t *testing.T) {
+	t.Run("successful sign in", func(t *testing.T) {
+		mockRepo := new(MockRepository)
+		mockJWT := new(MockJWT)
+		useCase := NewUseCase(mockRepo, mockJWT)
+
+		userID := uuid.New()
+		email := "test@example.com"
+		password := "password123"
+		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+
+		user := &entities.User{
+			UserID:   userID,
+			Email:    email,
+			Password: string(hashedPassword),
+			IsActive: true,
+		}
+
+		payload := dtos.SignInUserRequest{
+			Email:    email,
+			Password: password,
+		}
+
+		mockRepo.On("GetUserByEmail", context.Background(), email).Return(user, nil)
+		mockJWT.On("GenerateToken", jwt.PayloadToken{UserID: userID}).Return("test-token", nil)
+
+		token, err := useCase.SignInUser(context.Background(), payload)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "test-token", token)
+		mockRepo.AssertExpectations(t)
+		mockJWT.AssertExpectations(t)
+	})
+
+	t.Run("user not found", func(t *testing.T) {
+		mockRepo := new(MockRepository)
+		mockJWT := new(MockJWT)
+		useCase := NewUseCase(mockRepo, mockJWT)
+
+		email := "nonexistent@example.com"
+		payload := dtos.SignInUserRequest{
+			Email:    email,
+			Password: "password123",
+		}
+
+		mockRepo.On("GetUserByEmail", context.Background(), email).Return(nil, errors.New("user not found"))
+
+		token, err := useCase.SignInUser(context.Background(), payload)
+
+		assert.Error(t, err)
+		assert.Equal(t, customErrors.ErrInvalidCredentials, err)
+		assert.Empty(t, token)
+		mockRepo.AssertExpectations(t)
+		mockJWT.AssertNotCalled(t, "GenerateToken")
+	})
+
+	t.Run("inactive account", func(t *testing.T) {
+		mockRepo := new(MockRepository)
+		mockJWT := new(MockJWT)
+		useCase := NewUseCase(mockRepo, mockJWT)
+
+		userID := uuid.New()
+		email := "test@example.com"
+		password := "password123"
+		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+
+		user := &entities.User{
+			UserID:   userID,
+			Email:    email,
+			Password: string(hashedPassword),
+			IsActive: false,
+		}
+
+		payload := dtos.SignInUserRequest{
+			Email:    email,
+			Password: password,
+		}
+
+		mockRepo.On("GetUserByEmail", context.Background(), email).Return(user, nil)
+
+		token, err := useCase.SignInUser(context.Background(), payload)
+
+		assert.Error(t, err)
+		assert.Equal(t, customErrors.ErrUserInactive, err)
+		assert.Empty(t, token)
+		mockRepo.AssertExpectations(t)
+		mockJWT.AssertNotCalled(t, "GenerateToken")
+	})
+
+	t.Run("invalid password", func(t *testing.T) {
+		mockRepo := new(MockRepository)
+		mockJWT := new(MockJWT)
+		useCase := NewUseCase(mockRepo, mockJWT)
+
+		userID := uuid.New()
+		email := "test@example.com"
+		password := "password123"
+		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+
+		user := &entities.User{
+			UserID:   userID,
+			Email:    email,
+			Password: string(hashedPassword),
+			IsActive: true,
+		}
+
+		payload := dtos.SignInUserRequest{
+			Email:    email,
+			Password: "wrongpassword",
+		}
+
+		mockRepo.On("GetUserByEmail", context.Background(), email).Return(user, nil)
+
+		token, err := useCase.SignInUser(context.Background(), payload)
+
+		assert.Error(t, err)
+		assert.Equal(t, customErrors.ErrInvalidCredentials, err)
+		assert.Empty(t, token)
+		mockRepo.AssertExpectations(t)
+		mockJWT.AssertNotCalled(t, "GenerateToken")
+	})
+
+	t.Run("jwt generation error", func(t *testing.T) {
+		mockRepo := new(MockRepository)
+		mockJWT := new(MockJWT)
+		useCase := NewUseCase(mockRepo, mockJWT)
+
+		userID := uuid.New()
+		email := "test@example.com"
+		password := "password123"
+		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+
+		user := &entities.User{
+			UserID:   userID,
+			Email:    email,
+			Password: string(hashedPassword),
+			IsActive: true,
+		}
+
+		payload := dtos.SignInUserRequest{
+			Email:    email,
+			Password: password,
+		}
+
+		mockRepo.On("GetUserByEmail", context.Background(), email).Return(user, nil)
+		mockJWT.On("GenerateToken", jwt.PayloadToken{UserID: userID}).Return("", errors.New("jwt generation failed"))
+
+		token, err := useCase.SignInUser(context.Background(), payload)
+
+		assert.Error(t, err)
+		assert.Empty(t, token)
+		mockRepo.AssertExpectations(t)
+		mockJWT.AssertExpectations(t)
 	})
 }

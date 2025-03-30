@@ -26,6 +26,11 @@ func (m *MockUseCase) CreateUser(ctx context.Context, payload dtos.CreateUserReq
 	return args.Get(0).(uuid.UUID), args.Error(1)
 }
 
+func (m *MockUseCase) SignInUser(ctx context.Context, payload dtos.SignInUserRequest) (string, error) {
+	args := m.Called(ctx, payload)
+	return args.String(0), args.Error(1)
+}
+
 func TestCreateUser(t *testing.T) {
 	e := echo.New()
 
@@ -181,5 +186,180 @@ func TestCreateUser(t *testing.T) {
 		assert.Equal(t, "Invalid request body", response.Message)
 
 		mockUseCase.AssertNotCalled(t, "CreateUser")
+	})
+}
+
+func TestSignInUser(t *testing.T) {
+	e := echo.New()
+
+	t.Run("successfully sign in", func(t *testing.T) {
+		mockUseCase := new(MockUseCase)
+		handler := NewHandler(mockUseCase)
+
+		payload := dtos.SignInUserRequest{
+			Email:    "evgeny@example.com",
+			Password: "password123",
+		}
+
+		jsonPayload, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/sign-in", strings.NewReader(string(jsonPayload)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		mockUseCase.On("SignInUser", context.Background(), payload).Return("test-token", nil)
+
+		err := handler.SignInUser(c)
+
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var response dtos.SignInUserResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Equal(t, "test-token", response.Token)
+
+		mockUseCase.AssertExpectations(t)
+	})
+
+	t.Run("validation error", func(t *testing.T) {
+		mockUseCase := new(MockUseCase)
+		handler := NewHandler(mockUseCase)
+
+		payload := dtos.SignInUserRequest{
+			Email:    "invalid-email",
+			Password: "123",
+		}
+
+		jsonPayload, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/sign-in", strings.NewReader(string(jsonPayload)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		err := handler.SignInUser(c)
+
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+		var response dtos.ErrorResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Equal(t, "Ошибка валидации", response.Message)
+		assert.NotEmpty(t, response.ValidationErrors)
+
+		mockUseCase.AssertNotCalled(t, "SignInUser")
+	})
+
+	t.Run("invalid credentials", func(t *testing.T) {
+		mockUseCase := new(MockUseCase)
+		handler := NewHandler(mockUseCase)
+
+		payload := dtos.SignInUserRequest{
+			Email:    "evgeny@example.com",
+			Password: "wrongpassword",
+		}
+
+		jsonPayload, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/sign-in", strings.NewReader(string(jsonPayload)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		mockUseCase.On("SignInUser", context.Background(), payload).Return("", customErrors.ErrInvalidCredentials)
+
+		err := handler.SignInUser(c)
+
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+
+		var response dtos.ErrorResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Equal(t, "Неверный email или пароль", response.Message)
+
+		mockUseCase.AssertExpectations(t)
+	})
+
+	t.Run("inactive account", func(t *testing.T) {
+		mockUseCase := new(MockUseCase)
+		handler := NewHandler(mockUseCase)
+
+		payload := dtos.SignInUserRequest{
+			Email:    "evgeny@example.com",
+			Password: "password123",
+		}
+
+		jsonPayload, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/sign-in", strings.NewReader(string(jsonPayload)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		mockUseCase.On("SignInUser", context.Background(), payload).Return("", customErrors.ErrUserInactive)
+
+		err := handler.SignInUser(c)
+
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusForbidden, rec.Code)
+
+		var response dtos.ErrorResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Equal(t, "Аккаунт пользователя неактивен", response.Message)
+
+		mockUseCase.AssertExpectations(t)
+	})
+
+	t.Run("internal server error", func(t *testing.T) {
+		mockUseCase := new(MockUseCase)
+		handler := NewHandler(mockUseCase)
+
+		payload := dtos.SignInUserRequest{
+			Email:    "evgeny@example.com",
+			Password: "password123",
+		}
+
+		jsonPayload, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/sign-in", strings.NewReader(string(jsonPayload)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		mockUseCase.On("SignInUser", context.Background(), payload).Return("", errors.New("database error"))
+
+		err := handler.SignInUser(c)
+
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+
+		var response dtos.ErrorResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Equal(t, "Внутренняя ошибка сервера", response.Message)
+
+		mockUseCase.AssertExpectations(t)
+	})
+
+	t.Run("invalid json", func(t *testing.T) {
+		mockUseCase := new(MockUseCase)
+		handler := NewHandler(mockUseCase)
+
+		req := httptest.NewRequest(http.MethodPost, "/sign-in", strings.NewReader("invalid json"))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		err := handler.SignInUser(c)
+
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+		var response dtos.ErrorResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Equal(t, "Неверный формат запроса", response.Message)
+
+		mockUseCase.AssertNotCalled(t, "SignInUser")
 	})
 }

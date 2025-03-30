@@ -2,6 +2,8 @@ package usecases
 
 import (
 	"context"
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"home-library/internal/services/user/dtos"
 	"home-library/internal/services/user/entities"
 	"home-library/internal/services/user/repository"
@@ -11,6 +13,7 @@ import (
 
 type UseCase interface {
 	CreateUser(ctx context.Context, payload dtos.CreateUserRequest) (userID uuid.UUID, err error)
+	SignInUser(ctx context.Context, payload dtos.SignInUserRequest) (token string, err error)
 }
 
 type useCase struct {
@@ -46,4 +49,29 @@ func (u *useCase) CreateUser(ctx context.Context, payload dtos.CreateUserRequest
 	user.IsActive = true
 
 	return u.r.CreateUser(ctx, user)
+}
+
+func (u *useCase) SignInUser(ctx context.Context, payload dtos.SignInUserRequest) (token string, err error) {
+	user, err := u.r.GetUserByEmail(ctx, payload.Email)
+	if err != nil {
+		return "", errors.ErrInvalidCredentials
+	}
+
+	if !user.IsActive {
+		return "", errors.ErrUserInactive
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(payload.Password))
+	if err != nil {
+		return "", errors.ErrInvalidCredentials
+	}
+
+	token, err = u.jwt.GenerateToken(jwt.PayloadToken{
+		UserID: user.UserID,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return token, nil
 }
