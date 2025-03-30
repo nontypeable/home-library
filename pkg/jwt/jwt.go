@@ -15,6 +15,11 @@ type PayloadToken struct {
 	jwt.StandardClaims
 }
 
+type JWTService interface {
+	GenerateToken(payload PayloadToken) (token string, err error)
+	VerifyToken(c echo.Context, token string) error
+}
+
 type JWT struct {
 	cfg config.JWTConfig
 }
