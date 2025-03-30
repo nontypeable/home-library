@@ -6,9 +6,7 @@ import (
 	"home-library/internal/services/user/entities"
 	"home-library/internal/services/user/repository"
 	"home-library/pkg/errors"
-
-	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
+	"home-library/pkg/jwt"
 )
 
 type UseCase interface {
@@ -16,11 +14,12 @@ type UseCase interface {
 }
 
 type useCase struct {
-	r repository.Repository
+	r   repository.Repository
+	jwt jwt.JWTService
 }
 
-func NewUseCase(r repository.Repository) UseCase {
-	return &useCase{r: r}
+func NewUseCase(r repository.Repository, jwt jwt.JWTService) UseCase {
+	return &useCase{r: r, jwt: jwt}
 }
 
 func (u *useCase) CreateUser(ctx context.Context, payload dtos.CreateUserRequest) (userID uuid.UUID, err error) {
