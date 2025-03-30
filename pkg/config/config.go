@@ -14,6 +14,7 @@ type (
 		HTTPServer  HTTPServerConfig  `yaml:"http_server"`
 		Database    DatabaseConfig    `yaml:"database"`
 		SSL         SSLConfig         `yaml:"ssl"`
+		JWT         JWTConfig         `yaml:"jwt"`
 	}
 
 	ApplicationConfig struct {
@@ -40,6 +41,10 @@ type (
 	SSLConfig struct {
 		CertFile string `yaml:"cert_file"`
 		KeyFile  string `yaml:"key_file"`
+	}
+
+	JWTConfig struct {
+		Secret string `yaml:"secret"`
 	}
 )
 
