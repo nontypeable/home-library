@@ -58,7 +58,7 @@ func TestCreateUser(t *testing.T) {
 		var response map[string]interface{}
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
 		assert.NoError(t, err)
-		assert.Equal(t, userID.String(), response["id"])
+		assert.Equal(t, userID.String(), response["user_id"])
 
 		mockUseCase.AssertExpectations(t)
 	})

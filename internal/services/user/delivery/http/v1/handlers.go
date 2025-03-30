@@ -3,12 +3,11 @@ package v1
 import (
 	"context"
 	"errors"
+	"github.com/labstack/echo/v4"
 	"home-library/internal/services/user/dtos"
 	"home-library/internal/services/user/usecases"
 	customErrors "home-library/pkg/errors"
 	"net/http"
-
-	"github.com/labstack/echo/v4"
 )
 
 type handler struct {
@@ -38,5 +37,5 @@ func (h *handler) CreateUser(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, dtos.NewErrorResponse(http.StatusInternalServerError, "Failed to create user", nil))
 	}
 
-	return c.JSON(http.StatusOK, map[string]interface{}{"id": userID})
+	return c.JSON(http.StatusOK, dtos.CreateUserResponse{UserID: userID})
 }
